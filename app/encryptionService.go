@@ -42,6 +42,7 @@ func Decrypt(input UDPInfo, key string) DeviceInfo {
 	deviceInfo := DeviceInfo{}
 	decodeString, err := base64.StdEncoding.DecodeString(input.Pack)
 	if err != nil {
+		log.Errorf("[BASE64] base64解码失败：%s", err)
 		return DeviceInfo{}
 	}
 	decrypted, err := ECBDecrypt(decodeString, []byte(key))
@@ -49,10 +50,9 @@ func Decrypt(input UDPInfo, key string) DeviceInfo {
 		log.Errorf("[KEY] 解密失败：%s", err)
 		return deviceInfo
 	}
-	//log.Infof("[KEY]%s 解密成功：%s", key, string(decrypted))
 	err = json.Unmarshal(decrypted, &deviceInfo)
 	if err != nil {
-		log.Errorf("[JSON] 解析%s爲json失败：%s", decrypted, err)
+		log.Errorf("[JSON] json失败：%s", err)
 	}
 	return deviceInfo
 
@@ -67,7 +67,6 @@ func Encrypt(output interface{}, key string) string {
 		log.Errorf("[JSON] json序列化失败：%s", err)
 		return ""
 	}
-	//log.Infof("[JSON] json序列化成功：%s", string(marshal))
 	encrypted, _ := ECBEncrypt(marshal, []byte(key))
 	return base64.StdEncoding.EncodeToString(encrypted)
 }

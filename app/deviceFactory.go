@@ -59,7 +59,6 @@ func (options *DeviceFactory) ConnectToDevice(address net.IP) {
 	message := []byte("{\"t\":\"scan\"}")
 
 	go options.handleResponse(conn)
-	//log.Infof("[UDP] Send connect request: %s", message)
 	_, err = conn.Write(message)
 	if err != nil {
 		log.Errorf("[UDP] Error: %s", err)
@@ -76,7 +75,6 @@ func (options *DeviceFactory) sendBindRequest() {
 		T:   "bind",
 		Uid: 0,
 	}
-	//log.Infof("[UDP] Send bind request: %v", message)
 	encryptedBoundMessage := Encrypt(message, "")
 
 	request := UDPInfo{
@@ -94,7 +92,6 @@ func (options *DeviceFactory) sendBindRequest() {
 	if err != nil {
 		log.Errorf("[UDP] Seed Error: %s", err)
 	}
-	//log.Infof("[UDP] Send bind request: %s", requestJson)
 }
 
 func (options *DeviceFactory) requestDeviceStatus() {
@@ -163,14 +160,12 @@ func (options *DeviceFactory) sendCommand(commends []string, values []int) {
 }
 
 func (options *DeviceFactory) handleResponse(conn net.Conn) {
-	//props := make(Props)
 	for {
 		data := make([]byte, 1024)
 		read, err := conn.Read(data)
 		if err != nil {
 			log.Errorf("[UDP] Error: %s", err)
 		}
-		//log.Infof("[UDP] Received: %s from %s", data[:read], conn.RemoteAddr())
 
 		udpInfo := UDPInfo{}
 		err = json.Unmarshal(data[:read], &udpInfo)
@@ -181,9 +176,7 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 		pack := Decrypt(udpInfo, device.Key)
 
 		if pack.T == "dev" {
-			log.Infof("[UDP] Nw Device Registered: %s", pack.Name)
-			device.Id = "app"
-			//device.Id = pack.Mac
+			device.Id = pack.Mac
 			device.Name = pack.Name
 			device.Address = conn.RemoteAddr().String()
 			device.Port = 7000
@@ -201,17 +194,14 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			continue
 		}
 		if pack.T == "dat" && device.Bound {
-			log.Infof("[UDP] Received Data from %s", device.Name)
 			device.Props = make(map[string]int)
 			for i := 0; i < len(pack.Dat); i++ {
 				device.Props[pack.Cols[i]] = pack.Dat[i]
-				//props[pack.Cols[i]] = pack.Dat[i]
 			}
 			options.OnStatus(&device)
 			continue
 		}
 		if pack.T == "res" && device.Bound {
-			log.Infof("[UDP] Received Data from %s", device.Name)
 			device.Props = make(map[string]int)
 			for i := 0; i < len(pack.Dat); i++ {
 				device.Props[pack.Cols[i]] = pack.Val[i]
@@ -219,13 +209,10 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			options.OnUpdate(&device)
 			continue
 		}
+		log.Errorf("[UDP] Unknown Message of type %s: %v, %v", pack.T, data[:read], pack)
 	}
-
 }
 
-// SetPower /**
-// * @param {string} power - "on" or "off"
-// */
 func (options *DeviceFactory) SetPower(value bool) {
 	if value {
 		options.sendCommand([]string{Commands().Power.Code}, []int{1})

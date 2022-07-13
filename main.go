@@ -1,21 +1,23 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	log "github.com/sirupsen/logrus"
 	"gree_havc_mqtt_bridge_go/app"
 	"net"
+	"os"
 	"strconv"
 )
 
-var hvacHost = net.IPv4(192, 168, 100, 249)
-var mqttBrokerUrl = "192.168.100.1"
-var mqttBrokerPort = 1883
-var mqttTopicPrefix = "home/greehvac2"
-var mqttUser = "admin"
-var mqttPass = "admin"
-var mqttRetain = false
+var hvacHost net.IP
+var mqttBrokerUrl string
+var mqttBrokerPort int
+var mqttTopicPrefix string
+var mqttUser string
+var mqttPass string
+var mqttRetain bool
 
 var deviceState map[string]string
 var commands = app.Commands()
@@ -84,6 +86,7 @@ func getKeyByValue(m map[string]int, value int) (key string) {
 			return
 		}
 	}
+	log.Errorf("[UDP] Key not found for value: %d\n", value)
 	return
 }
 
@@ -98,12 +101,12 @@ func publishIfChanged(stateProp string, newValue string, mqttTopic string) {
 func callBack(_ mqtt.Client, message mqtt.Message) {
 	topic := message.Topic()
 	data := string(message.Payload())
-	//log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, topic)
+	log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, topic)
 	switch topic {
 	case mqttTopicPrefix + "/temperature/set":
 		float, err := strconv.ParseFloat(data, 32)
 		if err != nil {
-			log.Infof("[MQTT] Error Temperature %s to int\n", data)
+			log.Errorf("[MQTT] Error Temperature %s to int\n", data)
 		}
 		udpClient.SetTemperature(int(float), 0)
 		return
@@ -121,11 +124,9 @@ func callBack(_ mqtt.Client, message mqtt.Message) {
 		udpClient.SetFanSpeed(commands.FanSpeed.Value[data])
 		return
 	case mqttTopicPrefix + "/swinghor/set":
-		log.Infof("[DEBUG] swinghor %v\n", commands.SwingHor.Value[data])
 		udpClient.SetSwingHor(commands.SwingHor.Value[data])
 		return
 	case mqttTopicPrefix + "/swingvert/set":
-		log.Infof("[DEBUG] swinghor %v\n", commands.SwingVert.Value[data])
 		udpClient.SetSwingVert(commands.SwingVert.Value[data])
 		return
 	case mqttTopicPrefix + "/power/set":
@@ -143,7 +144,7 @@ func callBack(_ mqtt.Client, message mqtt.Message) {
 	case mqttTopicPrefix + "/quiet/set":
 		intVar, err := strconv.Atoi(data)
 		if err != nil {
-			log.Infof("[MQTT] Error Temperature %s to int\n", data)
+			log.Errorf("[MQTT] Error Quiet Mode %s to int\n", data)
 			return
 		}
 		udpClient.SetQuietMode(intVar)
@@ -164,6 +165,23 @@ func callBack(_ mqtt.Client, message mqtt.Message) {
 }
 
 func main() {
+
+	var ipStr string
+	flag.StringVar(&ipStr, "DIR", "", "Device IP Address")
+	flag.StringVar(&mqttBrokerUrl, "MBU", "", "MQTT Broker URL")
+	flag.IntVar(&mqttBrokerPort, "MBP", 1883, "MQTT Broker Port")
+	flag.StringVar(&mqttTopicPrefix, "MTP", "home/greehvac", "MQTT Topic Prefix")
+	flag.StringVar(&mqttUser, "MU", "admin", "MQTT User")
+	flag.StringVar(&mqttPass, "MP", "admin", "MQTT Password")
+	flag.BoolVar(&mqttRetain, "MR", false, "MQTT Retain")
+
+	flag.Parse()
+	if ipStr == "" && mqttBrokerUrl == "" {
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	hvacHost = net.ParseIP(ipStr)
 	server := mqttBrokerUrl
 	port := mqttBrokerPort
 	opts := mqtt.NewClientOptions()
