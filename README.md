@@ -132,7 +132,7 @@ First release
 
 ## License
 
-This project is licensed under the GNU GPLv3 - see the [LICENSE.md](https://github.com/IQAndreas/markdown-licenses/blob/master/gnu-gpl-v3.0.md) file for details
+This project is licensed under the GNU GPLv3 - see the [LICENSE](LICENSE) file for details
 
 ## Acknowledgments
 
