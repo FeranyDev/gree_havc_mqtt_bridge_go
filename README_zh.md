@@ -1,5 +1,8 @@
 # Gree HVAC MQTT bridge GO
 
+## [Enginsh](README.md) 简体中文
+
+
 使用MQTT广播与格力空调进行通信的桥接服务。它也可以作为[Hass.io](https://home-assistant.io/)插件使用。
 ## 要求
 
