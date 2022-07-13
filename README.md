@@ -1,5 +1,7 @@
 # Gree HVAC MQTT bridge GO
 
+## Enginsh [简体中文](README_zh.md)
+
 Bridge service for communicating with Gree air conditioners using MQTT broadcasts. It can also be used as a [Hass.io](https://home-assistant.io/) addon.
 
 ## Requirements
