@@ -12,23 +12,26 @@ import (
 var defaultKey = "a3K8Bx%2r8Y7#xDh"
 
 type DeviceInfo struct {
-	T       string         `json:"t"`
-	Cid     string         `json:"cid"`
-	Bc      string         `json:"bc"`
-	Brand   string         `json:"brand"`
-	Catalog string         `json:"catalog"`
-	Mac     string         `json:"mac"`
-	Mid     string         `json:"mid"`
-	Model   string         `json:"model"`
-	Name    string         `json:"name"`
-	Lock    int            `json:"lock"`
-	Series  string         `json:"series"`
-	Vender  string         `json:"vender"`
-	Ver     string         `json:"ver"`
-	Key     string         `json:"key"`
-	Dat     []int          `json:"dat"`
-	Cols    []string       `json:"cols"`
-	Val     map[string]int `json:"val"`
+	T       string   `json:"t"`
+	Cid     string   `json:"cid"`
+	Bc      string   `json:"bc"`
+	Brand   string   `json:"brand"`
+	Catalog string   `json:"catalog"`
+	Mac     string   `json:"mac"`
+	Mid     string   `json:"mid"`
+	Model   string   `json:"model"`
+	Name    string   `json:"name"`
+	Lock    int      `json:"lock"`
+	Series  string   `json:"series"`
+	Vender  string   `json:"vender"`
+	Ver     string   `json:"ver"`
+	Key     string   `json:"key"`
+	Dat     []int    `json:"dat"`
+	Cols    []string `json:"cols"`
+	Val     []int    `json:"val"`
+	P       []int    `json:"p"`
+	R       int      `json:"r"`
+	Opt     []string `json:"opt"`
 }
 
 func Decrypt(input UDPInfo, key string) DeviceInfo {
@@ -49,7 +52,7 @@ func Decrypt(input UDPInfo, key string) DeviceInfo {
 	//log.Infof("[KEY]%s 解密成功：%s", key, string(decrypted))
 	err = json.Unmarshal(decrypted, &deviceInfo)
 	if err != nil {
-		log.Errorf("[JSON] 解析json失败：%s", err)
+		log.Errorf("[JSON] 解析%s爲json失败：%s", decrypted, err)
 	}
 	return deviceInfo
 
@@ -64,7 +67,7 @@ func Encrypt(output interface{}, key string) string {
 		log.Errorf("[JSON] json序列化失败：%s", err)
 		return ""
 	}
-	log.Infof("[JSON] json序列化成功：%s", string(marshal))
+	//log.Infof("[JSON] json序列化成功：%s", string(marshal))
 	encrypted, _ := ECBEncrypt(marshal, []byte(key))
 	return base64.StdEncoding.EncodeToString(encrypted)
 }

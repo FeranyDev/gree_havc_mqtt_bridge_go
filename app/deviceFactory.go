@@ -19,7 +19,7 @@ type Device struct {
 
 type DeviceFactory struct {
 	Host        net.IP
-	OnStart     func(device *Device)
+	OnStatus    func(device *Device)
 	OnUpdate    func(device *Device)
 	OnConnected func()
 	Conn        net.Conn
@@ -39,7 +39,7 @@ var device = Device{}
 func Create(option DeviceFactory) *DeviceFactory {
 	return &DeviceFactory{
 		Host:        option.Host,
-		OnStart:     option.OnStart,
+		OnStatus:    option.OnStatus,
 		OnUpdate:    option.OnUpdate,
 		OnConnected: option.OnConnected,
 		Conn:        nil,
@@ -163,6 +163,7 @@ func (options *DeviceFactory) sendCommand(commends []string, values []int) {
 }
 
 func (options *DeviceFactory) handleResponse(conn net.Conn) {
+	//props := make(Props)
 	for {
 		data := make([]byte, 1024)
 		read, err := conn.Read(data)
@@ -200,31 +201,21 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			continue
 		}
 		if pack.T == "dat" && device.Bound {
-			//log.Infof("[UDP] Received Data from %s", device.Name)
+			log.Infof("[UDP] Received Data from %s", device.Name)
 			device.Props = make(map[string]int)
 			for i := 0; i < len(pack.Dat); i++ {
 				device.Props[pack.Cols[i]] = pack.Dat[i]
+				//props[pack.Cols[i]] = pack.Dat[i]
 			}
-			options.OnUpdate(&device)
+			options.OnStatus(&device)
 			continue
 		}
 		if pack.T == "res" && device.Bound {
 			log.Infof("[UDP] Received Data from %s", device.Name)
-			device.Props["Pow"] = pack.Val["Pow"]
-			device.Props["Mod"] = pack.Val["Mod"]
-			device.Props["TemUn"] = pack.Val["TemUn"]
-			device.Props["SetTem"] = pack.Val["SetTem"]
-			device.Props["WdSpd"] = pack.Val["WdSpd"]
-			device.Props["Air"] = pack.Val["Air"]
-			device.Props["Blo"] = pack.Val["Blo"]
-			device.Props["Health"] = pack.Val["Health"]
-			device.Props["SwhSlp"] = pack.Val["SwhSlp"]
-			device.Props["Lig"] = pack.Val["Lig"]
-			device.Props["SwingLfRig"] = pack.Val["SwingLfRig"]
-			device.Props["SwUpDn"] = pack.Val["SwUpDn"]
-			device.Props["Quiet"] = pack.Val["Quiet"]
-			device.Props["Tur"] = pack.Val["Tur"]
-			device.Props["SvSt"] = pack.Val["SvSt"]
+			device.Props = make(map[string]int)
+			for i := 0; i < len(pack.Dat); i++ {
+				device.Props[pack.Cols[i]] = pack.Val[i]
+			}
 			options.OnUpdate(&device)
 			continue
 		}

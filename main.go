@@ -9,15 +9,6 @@ import (
 	"strconv"
 )
 
-//type Device app.Device
-//
-//type DeviceOption struct {
-//	Host        net.IP
-//	OnStart     func(device *app.Device)
-//	OnUpdate    func(device *app.Device)
-//	OnConnected func()
-//}
-
 var hvacHost = net.IPv4(192, 168, 100, 249)
 var mqttBrokerUrl = "192.168.100.1"
 var mqttBrokerPort = 1883
@@ -26,7 +17,7 @@ var mqttUser = "admin"
 var mqttPass = "admin"
 var mqttRetain = false
 
-var deviceState map[string]int
+var deviceState map[string]string
 var commands = app.Commands()
 var client mqtt.Client
 var udpClient *app.DeviceFactory
@@ -45,8 +36,8 @@ var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err
 
 var deviceOptions = app.DeviceFactory{
 	Host: hvacHost,
-	OnStart: func(device *app.Device) {
-		publishIfChanged("Temperature", string(rune(device.Props[commands.Temperature.Code])), "/temperature/get")
+	OnStatus: func(device *app.Device) {
+		publishIfChanged("Temperature", strconv.Itoa(device.Props[commands.Temperature.Code]), "/temperature/get")
 		publishIfChanged("fanSpeed", getKeyByValue(commands.FanSpeed.Value, device.Props[commands.FanSpeed.Code]), "/fanspeed/get")
 		publishIfChanged("swingHor", getKeyByValue(commands.SwingHor.Value, device.Props[commands.SwingHor.Code]), "/swinghor/get")
 		publishIfChanged("swingVert", getKeyByValue(commands.SwingVert.Value, device.Props[commands.SwingVert.Code]), "/swingvert/get")
@@ -66,7 +57,7 @@ var deviceOptions = app.DeviceFactory{
 		publishIfChanged("mode", extandeMode, "/mode/get")
 	},
 	OnUpdate: func(device *app.Device) {
-		//log.Infof("[UDP] Status updated on %s\n", device.Name)
+		//log.Infof("[MQTT] Device Status Update: %v\n", device)
 	},
 	OnConnected: func() {
 		client.Subscribe(mqttTopicPrefix+"/temperature/set", 0, callBack)
@@ -82,40 +73,45 @@ var deviceOptions = app.DeviceFactory{
 		client.Subscribe(mqttTopicPrefix+"/air/set", 0, callBack)
 		client.Subscribe(mqttTopicPrefix+"/sleep/set", 0, callBack)
 		client.Subscribe(mqttTopicPrefix+"/turbo/set", 0, callBack)
+		client.Subscribe(mqttTopicPrefix+"/mode/set", 0, callBack)
 	},
 }
 
-func getKeyByValue(object map[string]int, value int) string {
-	return string(rune(object[string(rune(value))]))
+func getKeyByValue(m map[string]int, value int) (key string) {
+	for k, v := range m {
+		if v == value {
+			key = k
+			return
+		}
+	}
+	return
 }
 
 func publishIfChanged(stateProp string, newValue string, mqttTopic string) {
 	retain := mqttRetain
-	value, err := strconv.Atoi(newValue)
-	if err != nil {
-		log.Errorf("[MQTT] Error converting %s to int: %v\n", newValue, err)
+	if deviceState[stateProp] != newValue {
+		deviceState[stateProp] = newValue
+		client.Publish(mqttTopicPrefix+mqttTopic, 0, retain, newValue)
 	}
-	deviceState[stateProp] = value
-	client.Publish(mqttTopicPrefix+mqttTopic, 0, retain, newValue)
 }
 
 func callBack(_ mqtt.Client, message mqtt.Message) {
 	topic := message.Topic()
 	data := string(message.Payload())
-	log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, topic)
+	//log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, topic)
 	switch topic {
 	case mqttTopicPrefix + "/temperature/set":
-		intVar, err := strconv.Atoi(data)
+		float, err := strconv.ParseFloat(data, 32)
 		if err != nil {
 			log.Infof("[MQTT] Error Temperature %s to int\n", data)
 		}
-		udpClient.SetTemperature(intVar, 0)
+		udpClient.SetTemperature(int(float), 0)
 		return
 	case mqttTopicPrefix + "/mode/set":
 		if data == "off" {
 			udpClient.SetPower(false)
 		} else {
-			if deviceState["power"] == 0 {
+			if deviceState["power"] == "off" {
 				udpClient.SetPower(true)
 			}
 			udpClient.SetMode(commands.Mode.Value[data])
@@ -125,9 +121,11 @@ func callBack(_ mqtt.Client, message mqtt.Message) {
 		udpClient.SetFanSpeed(commands.FanSpeed.Value[data])
 		return
 	case mqttTopicPrefix + "/swinghor/set":
+		log.Infof("[DEBUG] swinghor %v\n", commands.SwingHor.Value[data])
 		udpClient.SetSwingHor(commands.SwingHor.Value[data])
 		return
 	case mqttTopicPrefix + "/swingvert/set":
+		log.Infof("[DEBUG] swinghor %v\n", commands.SwingVert.Value[data])
 		udpClient.SetSwingVert(commands.SwingVert.Value[data])
 		return
 	case mqttTopicPrefix + "/power/set":
@@ -182,6 +180,7 @@ func main() {
 		panic(token.Error())
 	}
 	udpClient = app.Create(deviceOptions)
+	deviceState = make(map[string]string)
 	udpClient.ConnectToDevice(hvacHost)
 
 	select {}
