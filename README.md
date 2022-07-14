@@ -6,15 +6,19 @@ Bridge service for communicating with Gree air conditioners using MQTT broadcast
 
 ## Requirements
 
-- GO (>=18.0)
+- GO (>=1.18.0)
 - An MQTT broker and Gree smart HVAC device on the same network
 
 ## Running locally
 
-Make sure you have GO (>=18.0) installed and run the following (adjust the arguments to match your setup):
+Make sure you have GO (>=1.18.0) installed and run the following (adjust the arguments to match your setup):
 
 ```shell
-app -DIR 192.168.1.255 \
+git clone https://github.com/FeranyDev/gree_havc_mqtt_bridge_go.git
+cd gree_havc_mqtt_bridge_go
+go install
+go build
+./gree_havc_mqtt_bridge_go -DIR 192.168.1.255 \
     -MBU 192.168.1.1 \
     -MBP 1883 \
     -MTP home/greehvac \

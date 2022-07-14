@@ -6,12 +6,19 @@
 使用MQTT广播与格力空调进行通信的桥接服务。它也可以作为[Hass.io](https://home-assistant.io/)插件使用。
 ## 要求
 
+- GO (>=1.18.0)
 - 同一网络上的MQTT代理和格力智能HVAC设备
 
 ## 本地运行
 
+- 确保你已经安装了GO(>=1.18.0)，并运行以下程序（调整参数以符合你的设置）。
+
 ```shell
-app -DIR 192.168.1.255 \
+git clone https://github.com/FeranyDev/gree_havc_mqtt_bridge_go.git
+cd gree_havc_mqtt_bridge_go
+go install
+go build
+./gree_havc_mqtt_bridge_go -DIR 192.168.1.255 \
     -MBU 192.168.1.1 \
     -MBP 1883 \
     -MTP home/greehvac \
