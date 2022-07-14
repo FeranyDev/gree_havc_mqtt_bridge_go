@@ -1,4 +1,4 @@
-package app
+package gree
 
 import (
 	"encoding/json"
@@ -78,7 +78,7 @@ func (options *DeviceFactory) sendBindRequest() {
 	encryptedBoundMessage := Encrypt(message, "")
 
 	request := UDPInfo{
-		Cid:  "app",
+		Cid:  "gree",
 		I:    1,
 		T:    "pack",
 		Uid:  0,
@@ -129,7 +129,7 @@ func (options *DeviceFactory) sendRequest(message interface{}) {
 	encryptedMessage := Encrypt(message, device.Key)
 	request := UDPInfo{
 		Tcid: "",
-		Cid:  "app",
+		Cid:  "gree",
 		I:    0,
 		T:    "pack",
 		Uid:  0,
@@ -308,4 +308,8 @@ func (options *DeviceFactory) SetPowerSave(value bool) {
 	} else {
 		options.sendCommand([]string{Commands().PowerSave.Code}, []int{0})
 	}
+}
+
+func (options *DeviceFactory) SetBFCommand(comm []string, value []int) {
+	options.sendCommand(comm, value)
 }
