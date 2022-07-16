@@ -1,9 +1,10 @@
 package config
 
 import (
-	"gopkg.in/yaml.v3"
 	"io/ioutil"
 	"net"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -43,13 +44,15 @@ type Gree struct {
 
 func GetConfig(path string) *Config {
 	c := &Config{}
+
 	yamlFile, err := ioutil.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
-	err = yaml.Unmarshal(yamlFile, c)
-	if err != nil {
+
+	if err = yaml.Unmarshal(yamlFile, c); err != nil {
 		panic(err)
 	}
+
 	return c
 }

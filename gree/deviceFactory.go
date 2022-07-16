@@ -2,9 +2,10 @@ package gree
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Device struct {
@@ -35,7 +36,7 @@ type UDPInfo struct {
 	Pack string `json:"pack"`
 }
 
-func Create(option DeviceFactory) *DeviceFactory {
+func Create(option *DeviceFactory) *DeviceFactory {
 	return &DeviceFactory{
 		Host:        option.Host,
 		OnStatus:    option.OnStatus,
@@ -48,18 +49,20 @@ func Create(option DeviceFactory) *DeviceFactory {
 func (options *DeviceFactory) ConnectToDevice(address net.IP) {
 	scrAddr := &net.UDPAddr{IP: net.IPv4zero, Port: 0}
 	dstAddr := &net.UDPAddr{IP: address, Port: 7000}
+
 	conn, err := net.DialUDP("udp", scrAddr, dstAddr)
-	options.Conn = conn
 	if err != nil {
 		log.Errorf("[UDP} Error: %s Waite 10s!", err)
 		time.Sleep(time.Second * 10)
 		options.ConnectToDevice(address)
 	}
+
+	options.Conn = conn
 	message := []byte("{\"t\":\"scan\"}")
 
 	go options.handleResponse(conn)
-	_, err = conn.Write(message)
-	if err != nil {
+
+	if _, err = conn.Write(message); err != nil {
 		log.Errorf("[UDP] Error: %s", err)
 	}
 }

@@ -1,4 +1,4 @@
-module gree_havc_mqtt_bridge_go
+module github.com/feranydev/gree_havc_mqtt_bridge_go
 
 go 1.18
 

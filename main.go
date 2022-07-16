@@ -4,32 +4,16 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
-	log "github.com/sirupsen/logrus"
-	"gree_havc_mqtt_bridge_go/app"
-	"gree_havc_mqtt_bridge_go/config"
 	"net"
 	"os"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/feranydev/gree_havc_mqtt_bridge_go/app"
+	"github.com/feranydev/gree_havc_mqtt_bridge_go/config"
+	log "github.com/sirupsen/logrus"
 )
 
-var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	log.Infof("[MQTT] Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-}
-
-var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
-	log.Infof("[MQTT] Connected")
-}
-
-var connectLostHandler mqtt.ConnectionLostHandler = func(client mqtt.Client, err error) {
-	log.Infof("[MQTT] Connect lost: %v\n", err)
-}
-
-var reconnectHandler mqtt.ReconnectHandler = func(client mqtt.Client, options *mqtt.ClientOptions) {
-	log.Infof("[MQTT] Reconnected")
-}
-
-func main() {
-
+func create() *config.Config {
 	c := &config.Config{}
 	c.Gree = make([]config.Gree, 1)
 
@@ -68,6 +52,11 @@ func main() {
 	} else {
 		c.Gree[0].Host = net.ParseIP(ipStr)
 	}
+	return c
+}
+
+func main() {
+	c := create()
 
 	var mqttClient mqtt.Client
 	var bemfaClient mqtt.Client
@@ -76,16 +65,24 @@ func main() {
 		mqttOpts.SetUsername(c.Mqtt.Havc.Username)
 		mqttOpts.SetPassword(c.Mqtt.Havc.Password)
 		mqttOpts.SetCleanSession(true)
-		mqttOpts.SetDefaultPublishHandler(messagePubHandler)
-		mqttOpts.SetReconnectingHandler(reconnectHandler)
+		mqttOpts.SetDefaultPublishHandler(func(client mqtt.Client, message mqtt.Message) {
+			log.Infof("[MQTT]Received message on topic %s: %s", message.Topic(), message.Payload())
+		})
+		mqttOpts.SetReconnectingHandler(func(client mqtt.Client, options *mqtt.ClientOptions) {
+			log.Infof("[MQTT] Reconnecting")
+		})
 		if c.Mqtt.Havc.Tls {
 			mqttOpts.SetTLSConfig(&tls.Config{InsecureSkipVerify: false})
 			mqttOpts.AddBroker(fmt.Sprintf("mqtts://%s:%d", c.Mqtt.Havc.Host, c.Mqtt.Havc.Port))
 		} else {
 			mqttOpts.AddBroker(fmt.Sprintf("mqtt://%s:%d", c.Mqtt.Havc.Host, c.Mqtt.Havc.Port))
 		}
-		mqttOpts.OnConnect = connectHandler
-		mqttOpts.OnConnectionLost = connectLostHandler
+		mqttOpts.OnConnect = func(client mqtt.Client) {
+			log.Infof("[MQTT] Connected to %s:%d", c.Mqtt.Havc.Host, c.Mqtt.Havc.Port)
+		}
+		mqttOpts.OnConnectionLost = func(client mqtt.Client, err error) {
+			log.Infof("[MQTT] Connection lost to %s:%d", c.Mqtt.Havc.Host, c.Mqtt.Havc.Port)
+		}
 		mqttClient = mqtt.NewClient(mqttOpts)
 
 		if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
@@ -101,12 +98,20 @@ func main() {
 			bemfaOpts.AddBroker(fmt.Sprintf("mqtt://%s:%d", c.Mqtt.Bemfa.Host, c.Mqtt.Bemfa.Port))
 		}
 		bemfaOpts.SetCleanSession(true)
-		bemfaOpts.SetDefaultPublishHandler(messagePubHandler)
+		bemfaOpts.SetDefaultPublishHandler(func(client mqtt.Client, message mqtt.Message) {
+			log.Infof("[BEMFA]Received message on topic %s: %s", message.Topic(), message.Payload())
+		})
 		bemfaOpts.SetClientID(c.Mqtt.Bemfa.ClientID)
-		bemfaOpts.SetReconnectingHandler(reconnectHandler)
+		bemfaOpts.SetReconnectingHandler(func(client mqtt.Client, options *mqtt.ClientOptions) {
+			log.Infof("[BEMFA] Reconnecting")
+		})
 
-		bemfaOpts.OnConnect = connectHandler
-		bemfaOpts.OnConnectionLost = connectLostHandler
+		bemfaOpts.OnConnect = func(client mqtt.Client) {
+			log.Infof("[BEMFA] Connected to %s:%d", c.Mqtt.Bemfa.Host, c.Mqtt.Bemfa.Port)
+		}
+		bemfaOpts.OnConnectionLost = func(client mqtt.Client, err error) {
+			log.Infof("[BEMFA] Connection lost to %s:%d", c.Mqtt.Bemfa.Host, c.Mqtt.Bemfa.Port)
+		}
 		bemfaClient = mqtt.NewClient(bemfaOpts)
 
 		if token := bemfaClient.Connect(); token.Wait() && token.Error() != nil {
@@ -116,9 +121,9 @@ func main() {
 
 	for i, gree := range c.Gree {
 		log.Infof("[APP:%d] Connecting to %s:%d", i+1, gree.Host, gree.Port)
-		app.Start(mqttClient, bemfaClient, &gree)
+		client := app.Create()
+		client.Start(mqttClient, bemfaClient, &gree)
 	}
 
 	select {}
-
 }

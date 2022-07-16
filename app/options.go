@@ -2,37 +2,31 @@ package app
 
 import (
 	"fmt"
-	mqtt "github.com/eclipse/paho.mqtt.golang"
-	log "github.com/sirupsen/logrus"
-	"gree_havc_mqtt_bridge_go/bemfa"
-	"gree_havc_mqtt_bridge_go/config"
-	"gree_havc_mqtt_bridge_go/gree"
 	"net"
 	"reflect"
 	"strconv"
 	"strings"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/feranydev/gree_havc_mqtt_bridge_go/bemfa"
+	"github.com/feranydev/gree_havc_mqtt_bridge_go/config"
+	"github.com/feranydev/gree_havc_mqtt_bridge_go/gree"
+	log "github.com/sirupsen/logrus"
 )
 
 type appOptions struct {
 	HvacHost        net.IP
 	MqttTopicPrefix string
 	BemfaTopic      string
+	MqttRetain      bool
 	DeviceState     map[string]string
+	Commands        gree.Command
 	Command         func()
 	mqttClient      mqtt.Client
 	BemfaClient     mqtt.Client
 	UdpClient       *gree.DeviceFactory
+	BemfaState      *Bemfa
 }
-
-var hvacHost net.IP
-var mqttTopicPrefix, bemfaTopic string
-var mqttRetain bool
-
-var deviceState map[string]string
-var commands = gree.Commands()
-var client mqtt.Client
-var bemfaClient mqtt.Client
-var udpClient *gree.DeviceFactory
 
 type Bemfa struct {
 	Power       bool
@@ -43,60 +37,57 @@ type Bemfa struct {
 	SwingVert   int
 }
 
-var bemfaState = &Bemfa{}
+func (options *appOptions) UpdateStatusToMqtt(device *gree.Device) {
+	if options.mqttClient != nil && options.MqttTopicPrefix != "" {
+		options.publishIfChanged("Temperature", strconv.Itoa(device.Props[options.Commands.Temperature.Code]), "/temperature/get")
+		options.publishIfChanged("fanSpeed", getKeyByValue(options.Commands.FanSpeed.Value, device.Props[options.Commands.FanSpeed.Code]), "/fanspeed/get")
+		options.publishIfChanged("swingHor", getKeyByValue(options.Commands.SwingHor.Value, device.Props[options.Commands.SwingHor.Code]), "/swinghor/get")
+		options.publishIfChanged("swingVert", getKeyByValue(options.Commands.SwingVert.Value, device.Props[options.Commands.SwingVert.Code]), "/swingvert/get")
+		options.publishIfChanged("power", getKeyByValue(options.Commands.Power.Value, device.Props[options.Commands.Power.Code]), "/power/get")
+		options.publishIfChanged("health", getKeyByValue(options.Commands.Health.Value, device.Props[options.Commands.Health.Code]), "/health/get")
+		options.publishIfChanged("powerSave", getKeyByValue(options.Commands.PowerSave.Value, device.Props[options.Commands.PowerSave.Code]), "/powersave/get")
+		options.publishIfChanged("lights", getKeyByValue(options.Commands.Lights.Value, device.Props[options.Commands.Lights.Code]), "/lights/get")
+		options.publishIfChanged("quiet", getKeyByValue(options.Commands.Quiet.Value, device.Props[options.Commands.Quiet.Code]), "/quiet/get")
+		options.publishIfChanged("blow", getKeyByValue(options.Commands.Blow.Value, device.Props[options.Commands.Blow.Code]), "/blow/get")
+		options.publishIfChanged("air", getKeyByValue(options.Commands.Air.Value, device.Props[options.Commands.Air.Code]), "/air/get")
+		options.publishIfChanged("sleep", getKeyByValue(options.Commands.Sleep.Value, device.Props[options.Commands.Sleep.Code]), "/sleep/get")
+		options.publishIfChanged("turbo", getKeyByValue(options.Commands.Turbo.Value, device.Props[options.Commands.Turbo.Code]), "/turbo/get")
 
-var deviceOptions = gree.DeviceFactory{
-	Host: hvacHost,
-	OnStatus: func(device *gree.Device) {
-		if client != nil && mqttTopicPrefix != "" {
-			publishIfChanged("Temperature", strconv.Itoa(device.Props[commands.Temperature.Code]), "/temperature/get")
-			publishIfChanged("fanSpeed", getKeyByValue(commands.FanSpeed.Value, device.Props[commands.FanSpeed.Code]), "/fanspeed/get")
-			publishIfChanged("swingHor", getKeyByValue(commands.SwingHor.Value, device.Props[commands.SwingHor.Code]), "/swinghor/get")
-			publishIfChanged("swingVert", getKeyByValue(commands.SwingVert.Value, device.Props[commands.SwingVert.Code]), "/swingvert/get")
-			publishIfChanged("power", getKeyByValue(commands.Power.Value, device.Props[commands.Power.Code]), "/power/get")
-			publishIfChanged("health", getKeyByValue(commands.Health.Value, device.Props[commands.Health.Code]), "/health/get")
-			publishIfChanged("powerSave", getKeyByValue(commands.PowerSave.Value, device.Props[commands.PowerSave.Code]), "/powersave/get")
-			publishIfChanged("lights", getKeyByValue(commands.Lights.Value, device.Props[commands.Lights.Code]), "/lights/get")
-			publishIfChanged("quiet", getKeyByValue(commands.Quiet.Value, device.Props[commands.Quiet.Code]), "/quiet/get")
-			publishIfChanged("blow", getKeyByValue(commands.Blow.Value, device.Props[commands.Blow.Code]), "/blow/get")
-			publishIfChanged("air", getKeyByValue(commands.Air.Value, device.Props[commands.Air.Code]), "/air/get")
-			publishIfChanged("sleep", getKeyByValue(commands.Sleep.Value, device.Props[commands.Sleep.Code]), "/sleep/get")
-			publishIfChanged("turbo", getKeyByValue(commands.Turbo.Value, device.Props[commands.Turbo.Code]), "/turbo/get")
-
-			extandeMode := "off"
-			if device.Props[commands.Power.Code] == 1 {
-				extandeMode = getKeyByValue(commands.Mode.Value, device.Props[commands.Mode.Code])
-			}
-			publishIfChanged("mode", extandeMode, "/mode/get")
+		extandeMode := "off"
+		if device.Props[options.Commands.Power.Code] == 1 {
+			extandeMode = getKeyByValue(options.Commands.Mode.Value, device.Props[options.Commands.Mode.Code])
 		}
-		if bemfaClient != nil && bemfaTopic != "" {
-			go bemfaGet(device)
-		}
-	},
-	OnUpdate: func(device *gree.Device) {
-		//log.Infof("[MQTT] Device Status Update: %v\n", device)
-	},
-	OnConnected: func() {
-		if client != nil && mqttTopicPrefix != "" {
-			client.Subscribe(mqttTopicPrefix+"/temperature/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/fanspeed/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/swinghor/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/swingvert/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/power/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/health/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/powersave/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/lights/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/quiet/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/blow/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/air/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/sleep/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/turbo/set", 0, callBack)
-			client.Subscribe(mqttTopicPrefix+"/mode/set", 0, callBack)
-		}
-		if bemfaClient != nil && bemfaTopic != "" {
-			bemfaClient.Subscribe(bemfaTopic, 0, callBack)
-		}
-	},
+		options.publishIfChanged("mode", extandeMode, "/mode/get")
+	}
+	if options.BemfaClient != nil && options.BemfaTopic != "" {
+		go options.bemfaGet(device)
+	}
+}
+func (options *appOptions) OnUpdate(_ *gree.Device) {
+	// log.Infof("[MQTT] Device Status Update: %v\n", device)
+}
+func (options *appOptions) OnConnected() {
+	mqttTopicPrefix := options.MqttTopicPrefix
+	callBack := options.callBack
+	if options.mqttClient != nil && options.MqttTopicPrefix != "" {
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/temperature/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/fanspeed/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/swinghor/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/swingvert/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/power/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/health/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/powersave/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/lights/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/quiet/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/blow/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/air/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/sleep/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/turbo/set", 0, callBack)
+		options.mqttClient.Subscribe(mqttTopicPrefix+"/mode/set", 0, callBack)
+	}
+	if options.BemfaClient != nil && options.BemfaTopic != "" {
+		options.BemfaClient.Subscribe(options.BemfaTopic, 0, callBack)
+	}
 }
 
 func getKeyByValue(m map[string]int, value int) (key string) {
@@ -110,134 +101,133 @@ func getKeyByValue(m map[string]int, value int) (key string) {
 	return
 }
 
-func publishIfChanged(stateProp string, newValue string, mqttTopic string) {
-	retain := mqttRetain
-	if deviceState[stateProp] != newValue {
-		deviceState[stateProp] = newValue
-		client.Publish(mqttTopicPrefix+mqttTopic, 0, retain, newValue)
+func (options *appOptions) publishIfChanged(stateProp string, newValue string, mqttTopic string) {
+	if options.DeviceState[stateProp] != newValue {
+		options.DeviceState[stateProp] = newValue
+		options.mqttClient.Publish(options.MqttTopicPrefix+mqttTopic, 0, options.MqttRetain, newValue)
 	}
 }
 
-func callBack(_ mqtt.Client, message mqtt.Message) {
-	topic := message.Topic()
+func (options *appOptions) callBack(_ mqtt.Client, message mqtt.Message) {
 	data := string(message.Payload())
-	log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, topic)
-	switch topic {
-	case mqttTopicPrefix + "/temperature/set":
+
+	log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, message.Topic())
+	switch message.Topic() {
+	case options.MqttTopicPrefix + "/temperature/set":
 		float, err := strconv.ParseFloat(data, 32)
 		if err != nil {
 			log.Errorf("[MQTT] Error Temperature %s to int\n", data)
 		}
-		udpClient.SetTemperature(int(float), 0)
+		options.UdpClient.SetTemperature(int(float), 0)
 		return
-	case mqttTopicPrefix + "/mode/set":
+	case options.MqttTopicPrefix + "/mode/set":
 		if data == "off" {
-			udpClient.SetPower(false)
+			options.UdpClient.SetPower(false)
 		} else {
-			if deviceState["power"] == "off" {
-				udpClient.SetPower(true)
+			if options.DeviceState["power"] == "off" {
+				options.UdpClient.SetPower(true)
 			}
-			udpClient.SetMode(commands.Mode.Value[data])
+			options.UdpClient.SetMode(options.Commands.Mode.Value[data])
 		}
 		return
-	case mqttTopicPrefix + "/fanspeed/set":
-		udpClient.SetFanSpeed(commands.FanSpeed.Value[data])
+	case options.MqttTopicPrefix + "/fanspeed/set":
+		options.UdpClient.SetFanSpeed(options.Commands.FanSpeed.Value[data])
 		return
-	case mqttTopicPrefix + "/swinghor/set":
-		udpClient.SetSwingHor(commands.SwingHor.Value[data])
+	case options.MqttTopicPrefix + "/swinghor/set":
+		options.UdpClient.SetSwingHor(options.Commands.SwingHor.Value[data])
 		return
-	case mqttTopicPrefix + "/swingvert/set":
-		udpClient.SetSwingVert(commands.SwingVert.Value[data])
+	case options.MqttTopicPrefix + "/swingvert/set":
+		options.UdpClient.SetSwingVert(options.Commands.SwingVert.Value[data])
 		return
-	case mqttTopicPrefix + "/power/set":
-		udpClient.SetPower(data == "1")
+	case options.MqttTopicPrefix + "/power/set":
+		options.UdpClient.SetPower(data == "1")
 		return
-	case mqttTopicPrefix + "/health/set":
-		udpClient.SetHealthMode(data == "1")
+	case options.MqttTopicPrefix + "/health/set":
+		options.UdpClient.SetHealthMode(data == "1")
 		return
-	case mqttTopicPrefix + "/powersave/set":
-		udpClient.SetPowerSave(data == "1")
+	case options.MqttTopicPrefix + "/powersave/set":
+		options.UdpClient.SetPowerSave(data == "1")
 		return
-	case mqttTopicPrefix + "/lights/set":
-		udpClient.SetLights(data == "1")
+	case options.MqttTopicPrefix + "/lights/set":
+		options.UdpClient.SetLights(data == "1")
 		return
-	case mqttTopicPrefix + "/quiet/set":
+	case options.MqttTopicPrefix + "/quiet/set":
 		intVar, err := strconv.Atoi(data)
 		if err != nil {
 			log.Errorf("[MQTT] Error Quiet Mode %s to int\n", data)
 			return
 		}
-		udpClient.SetQuietMode(intVar)
+		options.UdpClient.SetQuietMode(intVar)
 		return
-	case mqttTopicPrefix + "/blow/set":
-		udpClient.SetBlow(data == "1")
+	case options.MqttTopicPrefix + "/blow/set":
+		options.UdpClient.SetBlow(data == "1")
 		return
-	case mqttTopicPrefix + "/air/set":
-		udpClient.SetAir(data == "1")
+	case options.MqttTopicPrefix + "/air/set":
+		options.UdpClient.SetAir(data == "1")
 		return
-	case mqttTopicPrefix + "/sleep/set":
-		udpClient.SetSleepMode(data == "1")
+	case options.MqttTopicPrefix + "/sleep/set":
+		options.UdpClient.SetSleepMode(data == "1")
 		return
-	case mqttTopicPrefix + "/turbo/set":
-		udpClient.SetTurbo(data == "1")
+	case options.MqttTopicPrefix + "/turbo/set":
+		options.UdpClient.SetTurbo(data == "1")
 		return
-	case bemfaTopic + "":
-		go bemfaSet(data)
+	case options.BemfaTopic + "":
+		go options.bemfaSet(data)
 	}
 }
 
-func bemfaGet(device *gree.Device) {
-	newStatus := Bemfa{}
-	if device.Props[commands.Power.Code] == 0 {
-		bemfaClient.Publish(bemfaTopic+"/set", 0, mqttRetain, "off")
+func (options *appOptions) bemfaGet(device *gree.Device) {
+	newStatus := &Bemfa{}
+	if device.Props[options.Commands.Power.Code] == 0 {
+		options.BemfaClient.Publish(options.BemfaTopic+"/set", 0, options.MqttRetain, "off")
 		return
 	} else {
 		newStatus.Power = true
 	}
-	newStatus.Mode = bemfa.Commands().Mode[getKeyByValue(commands.Mode.Value, device.Props[commands.Mode.Code])]
-	if device.Props[commands.PowerSave.Code] == 1 {
+	newStatus.Mode = bemfa.Commands().Mode[getKeyByValue(options.Commands.Mode.Value, device.Props[options.Commands.Mode.Code])]
+	if device.Props[options.Commands.PowerSave.Code] == 1 {
 		newStatus.Mode = 7
-	} else if device.Props[commands.Sleep.Code] == 1 {
+	} else if device.Props[options.Commands.Sleep.Code] == 1 {
 		newStatus.Mode = 6
 	}
-	newStatus.Temperature = device.Props[commands.Temperature.Code]
-	newStatus.FanSpeed = bemfa.Commands().FanSpeed[getKeyByValue(commands.FanSpeed.Value, device.Props[commands.FanSpeed.Code])]
-	if device.Props[commands.SwingHor.Code] == 1 {
+	newStatus.Temperature = device.Props[options.Commands.Temperature.Code]
+	newStatus.FanSpeed = bemfa.Commands().FanSpeed[getKeyByValue(options.Commands.FanSpeed.Value, device.Props[options.Commands.FanSpeed.Code])]
+	if device.Props[options.Commands.SwingHor.Code] == 1 {
 		newStatus.SwingHor = 1
 	} else {
 		newStatus.SwingHor = 0
 	}
-	if device.Props[commands.SwingVert.Code] == 1 {
+	if device.Props[options.Commands.SwingVert.Code] == 1 {
 		newStatus.SwingVert = 1
 	} else {
 		newStatus.SwingVert = 0
 	}
-	if !reflect.DeepEqual(bemfaState, &newStatus) {
-		bemfaState = &newStatus
+	if !reflect.DeepEqual(*options.BemfaState, *newStatus) {
+		options.BemfaState = newStatus
 		power := "off"
 		if newStatus.Power {
 			power = "on"
 		}
 		value := fmt.Sprintf("%s#%d#%d#%d#%d#%d", power, newStatus.Mode, newStatus.Temperature, newStatus.FanSpeed, newStatus.SwingHor, newStatus.SwingVert)
-		bemfaClient.Publish(bemfaTopic+"/set", 0, mqttRetain, value)
+		options.BemfaClient.Publish(options.BemfaTopic+"/set", 0, options.MqttRetain, value)
 	}
 }
 
-func bemfaSet(data string) {
+func (options *appOptions) bemfaSet(data string) {
 	datas := strings.Split(data, "#")
 	comms := make([]string, 0)
 	values := make([]int, 0)
 	if datas[0] == "off" {
-		if !bemfaState.Power {
-			//udpClient.SetPower(false)
-			bemfaState.Power = false
+		if !options.BemfaState.Power {
+			// options.UdpClient.SetPower(false)
+			options.BemfaState.Power = false
 			return
 		}
 	} else {
-		if !bemfaState.Power {
-			comms = append(comms, commands.Power.Code)
+		if !options.BemfaState.Power {
+			comms = append(comms, options.Commands.Power.Code)
 			values = append(values, 1)
-			bemfaState.Power = true
+			options.BemfaState.Power = true
 		}
 	}
 	switch len(datas) {
@@ -247,10 +237,10 @@ func bemfaSet(data string) {
 			log.Errorf("[MQTT] Error SwingVert %s to int\n", datas[5])
 			return
 		}
-		if bemfaState.SwingVert != tmp {
-			comms = append(comms, commands.SwingVert.Code)
-			values = append(values, commands.SwingVert.Value[getKeyByValue(bemfa.Commands().SwingVert, tmp)])
-			bemfaState.SwingVert = tmp
+		if options.BemfaState.SwingVert != tmp {
+			comms = append(comms, options.Commands.SwingVert.Code)
+			values = append(values, options.Commands.SwingVert.Value[getKeyByValue(bemfa.Commands().SwingVert, tmp)])
+			options.BemfaState.SwingVert = tmp
 		}
 		fallthrough
 	case 5:
@@ -259,10 +249,10 @@ func bemfaSet(data string) {
 			log.Errorf("[MQTT] Error SwingHor %s to int\n", datas[5])
 			return
 		}
-		if bemfaState.SwingHor != tmp {
-			comms = append(comms, commands.SwingHor.Code)
-			values = append(values, commands.SwingVert.Value[getKeyByValue(bemfa.Commands().SwingHor, tmp)])
-			bemfaState.SwingHor = tmp
+		if options.BemfaState.SwingHor != tmp {
+			comms = append(comms, options.Commands.SwingHor.Code)
+			values = append(values, options.Commands.SwingVert.Value[getKeyByValue(bemfa.Commands().SwingHor, tmp)])
+			options.BemfaState.SwingHor = tmp
 		}
 		fallthrough
 	case 4:
@@ -271,10 +261,10 @@ func bemfaSet(data string) {
 			log.Errorf("[MQTT] Error FanSpeed %s to int\n", datas[3])
 			return
 		}
-		if bemfaState.FanSpeed != tmp {
-			comms = append(comms, commands.FanSpeed.Code)
-			values = append(values, commands.FanSpeed.Value[getKeyByValue(bemfa.Commands().FanSpeed, tmp)])
-			bemfaState.FanSpeed = tmp
+		if options.BemfaState.FanSpeed != tmp {
+			comms = append(comms, options.Commands.FanSpeed.Code)
+			values = append(values, options.Commands.FanSpeed.Value[getKeyByValue(bemfa.Commands().FanSpeed, tmp)])
+			options.BemfaState.FanSpeed = tmp
 		}
 		fallthrough
 	case 3:
@@ -283,12 +273,12 @@ func bemfaSet(data string) {
 			log.Errorf("[MQTT] Error Temperature %s to int\n", datas[2])
 			return
 		}
-		if bemfaState.Temperature != tmp {
-			comms = append(comms, commands.Temperature.Code)
+		if options.BemfaState.Temperature != tmp {
+			comms = append(comms, options.Commands.Temperature.Code)
 			values = append(values, tmp)
-			comms = append(comms, commands.TemperatureUnit.Code)
+			comms = append(comms, options.Commands.TemperatureUnit.Code)
 			values = append(values, 0)
-			bemfaState.Temperature = tmp
+			options.BemfaState.Temperature = tmp
 		}
 		fallthrough
 	case 2:
@@ -297,38 +287,49 @@ func bemfaSet(data string) {
 			log.Errorf("[MQTT] Error Mode %s to int\n", datas[1])
 			return
 		}
-		if bemfaState.Mode != tmp {
+		if options.BemfaState.Mode != tmp {
 			switch tmp {
 			case 7:
-				comms = append(comms, commands.PowerSave.Code)
+				comms = append(comms, options.Commands.PowerSave.Code)
 				values = append(values, 1)
 			case 6:
-				comms = append(comms, commands.Sleep.Code)
+				comms = append(comms, options.Commands.Sleep.Code)
 				values = append(values, 1)
 			case 5, 4, 3, 2, 1:
-				comms = append(comms, commands.Mode.Code)
-				values = append(values, commands.Mode.Value[getKeyByValue(bemfa.Commands().Mode, tmp)])
+				comms = append(comms, options.Commands.Mode.Code)
+				values = append(values, options.Commands.Mode.Value[getKeyByValue(bemfa.Commands().Mode, tmp)])
 			}
-			bemfaState.Mode = tmp
+			options.BemfaState.Mode = tmp
 		}
 	}
 	if len(comms) != 0 || len(values) != 0 {
-		udpClient.SetBFCommand(comms, values)
+		options.UdpClient.SetBFCommand(comms, values)
 	}
 }
 
-func Start(mqtt mqtt.Client, bemfa mqtt.Client, greeConfig *config.Gree) {
+func (options *appOptions) Start(mqtt mqtt.Client, bemfa mqtt.Client, greeConfig *config.Gree) {
 
-	//options := appOptions{}
+	deviceFactory := gree.DeviceFactory{
+		Host:        options.HvacHost,
+		OnStatus:    options.UpdateStatusToMqtt,
+		OnConnected: options.OnConnected,
+		OnUpdate:    options.OnUpdate,
+	}
 
-	hvacHost = greeConfig.Host
-	client = mqtt
-	mqttTopicPrefix = greeConfig.HavcTopic
-	bemfaTopic = greeConfig.BemfaTopic
-	bemfaClient = bemfa
-	udpClient = gree.Create(deviceOptions)
-	deviceState = make(map[string]string)
-	udpClient.ConnectToDevice(hvacHost)
+	options.Commands = gree.Commands()
+	options.HvacHost = greeConfig.Host
+	options.mqttClient = mqtt
+	options.MqttTopicPrefix = greeConfig.HavcTopic
+	options.BemfaTopic = greeConfig.BemfaTopic
+	options.BemfaClient = bemfa
+	options.UdpClient = gree.Create(&deviceFactory)
+	options.DeviceState = make(map[string]string)
+	options.BemfaState = &Bemfa{}
+	options.UdpClient.ConnectToDevice(options.HvacHost)
 
-	//select {}
+	// select {}
+}
+
+func Create() *appOptions {
+	return &appOptions{}
 }

@@ -207,6 +207,7 @@ func Commands() Command {
 		Code:  "SvSt",
 		Value: value,
 	}
+
 	return Command{
 		Power:           power,
 		Mode:            mode,
