@@ -13,20 +13,72 @@
 
 - 确保你已经安装了GO(>=1.18.0)，并运行以下程序（调整参数以符合你的设置）。
 
+### 安装
 ```shell
 git clone https://github.com/FeranyDev/gree_havc_mqtt_bridge_go.git
 cd gree_havc_mqtt_bridge_go
 go install
 go build
-./gree_havc_mqtt_bridge_go -DIR 192.168.1.255 \
-    -MBU 192.168.1.1 \
-    -MBP 1883 \
-    -MTP home/greehvac \
-    -MU admin \
-    -MP admin \
-    -MR false
 ```
-
+### 运行 
+```shell
+./gree_havc_mqtt_bridge_go \
+  -hvac-host 192.168.1.225 \
+  -mqtt-broker-url 192.168.1.1 \
+  -mqtt-broker-port 1883 \
+  -mqtt-topic-prefix home/greehvac 
+```
+- or
+```shell
+./gree_havc_mqtt_bridge_go \
+  -hvac-host 192.168.1.225 \
+  -bemfa-client-id bemfa_key \
+  -bemfa-topic bemfa_topic 
+```
+- or
+```shell
+./gree_havc_mqtt_bridge_go \
+  -hvac-host 192.168.1.225 \
+  -mqtt-broker-url 192.168.100.1 \
+  -mqtt-broker-port 1883 \
+  -mqtt-topic-prefix home/greehvac \
+  -bemfa-client-id bemfa_key \
+  -bemfa-topic bemfa_topic 
+```
+- or
+```shell
+./gree_havc_mqtt_bridge_go -c ./config.json
+```
+### 配置文件
+```yaml
+mqtt:
+  havc:
+    host: 192.168.1.1
+    port: 1883
+    username: havc
+    password: havc
+    client_id: havc
+    retain: false
+    tls: false
+  bemfa:
+    host: bemfa.com
+    port: 9501 # TLS 9503
+    username: bemfa
+    password: bemfa
+    client_id: bemfa
+    retain: false
+    tls: false
+gree:
+  - host: 192.168.1.225
+    port: 7000
+    havc_topic: gree
+    bemfa_topic: gree
+  - host: 192.168.1.226
+    port: 7000
+    topic: gree
+    havc_topic: gree
+    bemfa_topic: gree
+```
 ## 支持的命令
 
 MQTT主题方案:

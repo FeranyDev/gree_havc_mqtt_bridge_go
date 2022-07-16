@@ -1,0 +1,27 @@
+mqtt:
+  havc:
+    host: localhost
+    port: 1883
+    username: havc
+    password: havc
+    client_id: havc
+    retain: false
+    tls: false
+  bemfa:
+    host: localhost
+    port: 1883
+    username: bemfa
+    password: bemfa
+    client_id: bemfa
+    retain: false
+    tls: false
+gree:
+  - host: 192.168.1.225
+    port: 7000
+    havc_topic: gree
+    bemfa_topic: gree
+  - host: 192.168.1.226
+    port: 7000
+    topic: gree
+    havc_topic: gree
+    bemfa_topic: gree

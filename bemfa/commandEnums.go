@@ -5,8 +5,8 @@ type Command struct {
 	Mode        map[string]int `json:"mode"`
 	Temperature int            `json:"temperature"`
 	FanSpeed    map[string]int `json:"fanSpeed"`
-	SwingHor    []int          `json:"swingHor"`
-	SwingVert   []int          `json:"swingVert"`
+	SwingHor    map[string]int `json:"swingHor"`
+	SwingVert   map[string]int `json:"swingVert"`
 }
 
 func Commands() Command {
@@ -33,13 +33,13 @@ func Commands() Command {
 			"mediumHigh": 4,
 			"high":       5,
 		},
-		SwingHor: []int{
-			0,
-			1,
+		SwingHor: map[string]int{
+			"default": 0,
+			"all":     1,
 		},
-		SwingVert: []int{
-			0,
-			1,
+		SwingVert: map[string]int{
+			"default": 0,
+			"all":     1,
 		},
 	}
 }
