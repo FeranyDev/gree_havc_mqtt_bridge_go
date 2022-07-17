@@ -246,7 +246,7 @@ func (options *appOptions) bemfaSet(data string) {
 	case 5:
 		tmp, err := strconv.Atoi(datas[4])
 		if err != nil {
-			log.Errorf("[MQTT] Error SwingHor %s to int\n", datas[5])
+			log.Errorf("[MQTT] Error SwingHor %s to int\n", datas[4])
 			return
 		}
 		if options.BemfaState.SwingHor != tmp {

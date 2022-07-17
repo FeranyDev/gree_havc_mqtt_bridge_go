@@ -35,11 +35,11 @@ func Commands() Command {
 		},
 		SwingHor: map[string]int{
 			"default": 0,
-			"all":     1,
+			"full":    1,
 		},
 		SwingVert: map[string]int{
 			"default": 0,
-			"all":     1,
+			"full":    1,
 		},
 	}
 }

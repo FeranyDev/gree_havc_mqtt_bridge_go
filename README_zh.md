@@ -49,6 +49,7 @@ go build
 ```shell
 ./gree_havc_mqtt_bridge_go -c ./config.json
 ```
+
 ### 配置文件
 ```yaml
 mqtt:
@@ -71,13 +72,12 @@ mqtt:
 gree:
   - host: 192.168.1.225
     port: 7000
-    havc_topic: gree
-    bemfa_topic: gree
+    havc_topic: havc_topic_prefix
+    bemfa_topic: bemfa_topic
   - host: 192.168.1.226
     port: 7000
-    topic: gree
-    havc_topic: gree
-    bemfa_topic: gree
+    havc_topic: havc_topic_prefix
+    bemfa_topic: bemfa_topic
 ```
 ## 支持的命令
 
