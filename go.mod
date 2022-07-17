@@ -1,10 +1,11 @@
-module gree_havc_mqtt_bridge_go
+module github.com/feranydev/gree_havc_mqtt_bridge_go
 
 go 1.18
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.4.1
 	github.com/sirupsen/logrus v1.8.1
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

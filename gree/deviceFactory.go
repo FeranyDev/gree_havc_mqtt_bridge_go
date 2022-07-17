@@ -2,9 +2,10 @@ package gree
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Device struct {
@@ -23,6 +24,7 @@ type DeviceFactory struct {
 	OnUpdate    func(device *Device)
 	OnConnected func()
 	Conn        net.Conn
+	Device      Device
 }
 
 type UDPInfo struct {
@@ -34,9 +36,7 @@ type UDPInfo struct {
 	Pack string `json:"pack"`
 }
 
-var device = Device{}
-
-func Create(option DeviceFactory) *DeviceFactory {
+func Create(option *DeviceFactory) *DeviceFactory {
 	return &DeviceFactory{
 		Host:        option.Host,
 		OnStatus:    option.OnStatus,
@@ -49,18 +49,20 @@ func Create(option DeviceFactory) *DeviceFactory {
 func (options *DeviceFactory) ConnectToDevice(address net.IP) {
 	scrAddr := &net.UDPAddr{IP: net.IPv4zero, Port: 0}
 	dstAddr := &net.UDPAddr{IP: address, Port: 7000}
+
 	conn, err := net.DialUDP("udp", scrAddr, dstAddr)
-	options.Conn = conn
 	if err != nil {
 		log.Errorf("[UDP} Error: %s Waite 10s!", err)
 		time.Sleep(time.Second * 10)
 		options.ConnectToDevice(address)
 	}
+
+	options.Conn = conn
 	message := []byte("{\"t\":\"scan\"}")
 
 	go options.handleResponse(conn)
-	_, err = conn.Write(message)
-	if err != nil {
+
+	if _, err = conn.Write(message); err != nil {
 		log.Errorf("[UDP] Error: %s", err)
 	}
 }
@@ -71,7 +73,7 @@ func (options *DeviceFactory) sendBindRequest() {
 		T   string `json:"t"`
 		Uid int    `json:"uid"`
 	}{
-		Mac: device.Id,
+		Mac: options.Device.Id,
 		T:   "bind",
 		Uid: 0,
 	}
@@ -117,7 +119,7 @@ func (options *DeviceFactory) requestDeviceStatus() {
 			"Tur",
 			"SvSt",
 		},
-		Mac: device.Id,
+		Mac: options.Device.Id,
 		T:   "status",
 	}
 	options.sendRequest(message)
@@ -126,7 +128,7 @@ func (options *DeviceFactory) requestDeviceStatus() {
 }
 
 func (options *DeviceFactory) sendRequest(message interface{}) {
-	encryptedMessage := Encrypt(message, device.Key)
+	encryptedMessage := Encrypt(message, options.Device.Key)
 	request := UDPInfo{
 		Tcid: "",
 		Cid:  "gree",
@@ -173,40 +175,40 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			log.Errorf("[JSON] Error: %s", err)
 		}
 
-		pack := Decrypt(udpInfo, device.Key)
+		pack := Decrypt(udpInfo, options.Device.Key)
 
 		if pack.T == "dev" {
-			device.Id = pack.Mac
-			device.Name = pack.Name
-			device.Address = conn.RemoteAddr().String()
-			device.Port = 7000
-			device.Bound = false
-			device.Props = nil
+			options.Device.Id = pack.Mac
+			options.Device.Name = pack.Name
+			options.Device.Address = conn.RemoteAddr().String()
+			options.Device.Port = 7000
+			options.Device.Bound = false
+			options.Device.Props = nil
 			options.sendBindRequest()
 			continue
 		}
 		if pack.T == "bindok" {
-			log.Infof("[UDP] Bound to %s", device.Name)
-			device.Bound = true
-			device.Key = pack.Key
+			log.Infof("[UDP] Bound to %s", options.Device.Name)
+			options.Device.Bound = true
+			options.Device.Key = pack.Key
 			go options.requestDeviceStatus()
 			options.OnConnected()
 			continue
 		}
-		if pack.T == "dat" && device.Bound {
-			device.Props = make(map[string]int)
+		if pack.T == "dat" && options.Device.Bound {
+			options.Device.Props = make(map[string]int)
 			for i := 0; i < len(pack.Dat); i++ {
-				device.Props[pack.Cols[i]] = pack.Dat[i]
+				options.Device.Props[pack.Cols[i]] = pack.Dat[i]
 			}
-			options.OnStatus(&device)
+			options.OnStatus(&options.Device)
 			continue
 		}
-		if pack.T == "res" && device.Bound {
-			device.Props = make(map[string]int)
+		if pack.T == "res" && options.Device.Bound {
+			options.Device.Props = make(map[string]int)
 			for i := 0; i < len(pack.Dat); i++ {
-				device.Props[pack.Cols[i]] = pack.Val[i]
+				options.Device.Props[pack.Cols[i]] = pack.Val[i]
 			}
-			options.OnUpdate(&device)
+			options.OnUpdate(&options.Device)
 			continue
 		}
 		log.Errorf("[UDP] Unknown Message of type %s: %v, %v", pack.T, data[:read], pack)

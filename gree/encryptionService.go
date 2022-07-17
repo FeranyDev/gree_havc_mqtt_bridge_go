@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -54,8 +55,8 @@ func Decrypt(input UDPInfo, key string) DeviceInfo {
 	if err != nil {
 		log.Errorf("[JSON] json失败：%s", err)
 	}
-	return deviceInfo
 
+	return deviceInfo
 }
 
 func Encrypt(output interface{}, key string) string {
