@@ -218,8 +218,8 @@ func (options *appOptions) bemfaSet(data string) {
 	comms := make([]string, 0)
 	values := make([]int, 0)
 	if datas[0] == "off" {
-		if !options.BemfaState.Power {
-			// options.UdpClient.SetPower(false)
+		if options.BemfaState.Power {
+			options.UdpClient.SetPower(false)
 			options.BemfaState.Power = false
 			return
 		}
