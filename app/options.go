@@ -6,15 +6,16 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/feranydev/gree_havc_mqtt_bridge_go/bemfa"
 	"github.com/feranydev/gree_havc_mqtt_bridge_go/config"
 	"github.com/feranydev/gree_havc_mqtt_bridge_go/gree"
-	log "github.com/sirupsen/logrus"
+	"github.com/labstack/gommon/log"
 )
 
-type appOptions struct {
+type AppOptions struct {
 	HvacHost        net.IP
 	MqttTopicPrefix string
 	BemfaTopic      string
@@ -37,7 +38,7 @@ type Bemfa struct {
 	SwingVert   int
 }
 
-func (options *appOptions) UpdateStatusToMqtt(device *gree.Device) {
+func (options *AppOptions) UpdateStatusToMqtt(device *gree.Device) {
 	if options.mqttClient != nil && options.MqttTopicPrefix != "" {
 		options.publishIfChanged("Temperature", strconv.Itoa(device.Props[options.Commands.Temperature.Code]), "/temperature/get")
 		options.publishIfChanged("fanSpeed", getKeyByValue(options.Commands.FanSpeed.Value, device.Props[options.Commands.FanSpeed.Code]), "/fanspeed/get")
@@ -63,10 +64,11 @@ func (options *appOptions) UpdateStatusToMqtt(device *gree.Device) {
 		go options.bemfaGet(device)
 	}
 }
-func (options *appOptions) OnUpdate(_ *gree.Device) {
+func (options *AppOptions) OnUpdate(_ *gree.Device) {
 	// log.Infof("[MQTT] Device Status Update: %v\n", device)
 }
-func (options *appOptions) OnConnected() {
+func (options *AppOptions) OnConnected() {
+	time.Sleep(time.Second * 2)
 	mqttTopicPrefix := options.MqttTopicPrefix
 	callBack := options.callBack
 	if options.mqttClient != nil && options.MqttTopicPrefix != "" {
@@ -101,14 +103,14 @@ func getKeyByValue(m map[string]int, value int) (key string) {
 	return
 }
 
-func (options *appOptions) publishIfChanged(stateProp string, newValue string, mqttTopic string) {
+func (options *AppOptions) publishIfChanged(stateProp string, newValue string, mqttTopic string) {
 	if options.DeviceState[stateProp] != newValue {
 		options.DeviceState[stateProp] = newValue
 		options.mqttClient.Publish(options.MqttTopicPrefix+mqttTopic, 0, options.MqttRetain, newValue)
 	}
 }
 
-func (options *appOptions) callBack(_ mqtt.Client, message mqtt.Message) {
+func (options *AppOptions) callBack(_ mqtt.Client, message mqtt.Message) {
 	data := string(message.Payload())
 
 	log.Infof("[MQTT] Received Message \"%s\" received for %s\n", data, message.Topic())
@@ -176,7 +178,7 @@ func (options *appOptions) callBack(_ mqtt.Client, message mqtt.Message) {
 	}
 }
 
-func (options *appOptions) bemfaGet(device *gree.Device) {
+func (options *AppOptions) bemfaGet(device *gree.Device) {
 	newStatus := &Bemfa{}
 	if device.Props[options.Commands.Power.Code] == 0 {
 		options.BemfaClient.Publish(options.BemfaTopic+"/set", 0, options.MqttRetain, "off")
@@ -213,7 +215,7 @@ func (options *appOptions) bemfaGet(device *gree.Device) {
 	}
 }
 
-func (options *appOptions) bemfaSet(data string) {
+func (options *AppOptions) bemfaSet(data string) {
 	datas := strings.Split(data, "#")
 	comms := make([]string, 0)
 	values := make([]int, 0)
@@ -307,7 +309,7 @@ func (options *appOptions) bemfaSet(data string) {
 	}
 }
 
-func (options *appOptions) Start(mqtt mqtt.Client, bemfa mqtt.Client, greeConfig *config.Gree) {
+func (options *AppOptions) Start(mqtt mqtt.Client, bemfa mqtt.Client, greeConfig *config.Gree) {
 
 	deviceFactory := gree.DeviceFactory{
 		Host:        options.HvacHost,
@@ -330,6 +332,6 @@ func (options *appOptions) Start(mqtt mqtt.Client, bemfa mqtt.Client, greeConfig
 	// select {}
 }
 
-func Create() *appOptions {
-	return &appOptions{}
+func Create() *AppOptions {
+	return &AppOptions{}
 }
