@@ -96,7 +96,8 @@ func (options *DeviceFactory) sendBindRequest() {
 	}
 }
 
-func (options *DeviceFactory) requestDeviceStatus(ch chan bool) {
+//func (options *DeviceFactory) requestDeviceStatus(ch chan bool) {
+func (options *DeviceFactory) requestDeviceStatus() {
 	for {
 		message := struct {
 			Cols []string `json:"cols"`
@@ -126,8 +127,8 @@ func (options *DeviceFactory) requestDeviceStatus(ch chan bool) {
 		err := options.sendRequest(message)
 		if err != nil {
 			log.Errorf("[UDP] Error: %s", err)
-			ch <- false
-			break
+			//ch <- false
+			//break
 		}
 		time.Sleep(time.Second * 3)
 	}
@@ -173,7 +174,7 @@ func (options *DeviceFactory) sendCommand(commends []string, values []int) {
 
 func (options *DeviceFactory) handleResponse(conn net.Conn) {
 
-	ch := make(chan bool)
+	//ch := make(chan bool)
 	for {
 		data := make([]byte, 1024)
 		read, err := conn.Read(data)
@@ -203,7 +204,8 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			log.Infof("[UDP] Bound to %s", options.Device.Name)
 			options.Device.Bound = true
 			options.Device.Key = pack.Key
-			go options.requestDeviceStatus(ch)
+			go options.requestDeviceStatus()
+			//go options.requestDeviceStatus(ch)
 			options.OnConnected()
 			continue
 		}
@@ -223,15 +225,15 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			options.OnUpdate(&options.Device)
 			continue
 		}
-		if !<-ch {
-			log.Debugf("[UDP] Disconnected %d", options.Host)
-			err := options.Conn.Close()
-			if err != nil {
-				log.Errorf("[UDP] Error: %s", err)
-			}
-			go options.ConnectToDevice(options.Host)
-			break
-		}
+		//if !<-ch {
+		//	log.Debugf("[UDP] Disconnected %d", options.Host)
+		//	err := options.Conn.Close()
+		//	if err != nil {
+		//		log.Errorf("[UDP] Error: %s", err)
+		//	}
+		//	go options.ConnectToDevice(options.Host)
+		//	break
+		//}
 		log.Errorf("[UDP] Unknown Message of type %s: %v, %v", pack.T, data[:read], pack)
 	}
 }

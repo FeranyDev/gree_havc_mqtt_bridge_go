@@ -327,7 +327,7 @@ func (options *AppOptions) Start(mqtt mqtt.Client, bemfa mqtt.Client, greeConfig
 	options.UdpClient = gree.Create(&deviceFactory)
 	options.DeviceState = make(map[string]string)
 	options.BemfaState = &Bemfa{}
-	options.UdpClient.ConnectToDevice(options.HvacHost)
+	go options.UdpClient.ConnectToDevice(options.HvacHost)
 
 	// select {}
 }
