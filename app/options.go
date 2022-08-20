@@ -181,8 +181,7 @@ func (options *AppOptions) callBack(_ mqtt.Client, message mqtt.Message) {
 func (options *AppOptions) bemfaGet(device *gree.Device) {
 	newStatus := &Bemfa{}
 	if device.Props[options.Commands.Power.Code] == 0 {
-		options.BemfaClient.Publish(options.BemfaTopic+"/set", 0, options.MqttRetain, "off")
-		return
+		newStatus.Power = false
 	} else {
 		newStatus.Power = true
 	}
