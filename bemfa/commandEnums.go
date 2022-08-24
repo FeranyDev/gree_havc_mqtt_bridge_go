@@ -4,9 +4,9 @@ type Command struct {
 	Power       []string       `json:"power"`
 	Mode        map[string]int `json:"mode"`
 	Temperature int            `json:"temperature"`
-	FanSpeed    map[string]int `json:"fanSpeed"`  // nolint:tagliatelle // Fuck YOU
-	SwingHor    map[string]int `json:"swingHor"`  // nolint:tagliatelle // Fuck YOU
-	SwingVert   map[string]int `json:"swingVert"` // nolint:tagliatelle // Fuck YOU
+	FanSpeed    map[string]int `json:"fanSpeed"`  // nolint:tagliatelle //
+	SwingHor    map[string]int `json:"swingHor"`  // nolint:tagliatelle //
+	SwingVert   map[string]int `json:"swingVert"` // nolint:tagliatelle //
 }
 
 func Commands() Command {
