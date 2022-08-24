@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/labstack/gommon/log"
 )
 
 type Device struct {
@@ -96,38 +96,45 @@ func (options *DeviceFactory) sendBindRequest() {
 	}
 }
 
+//func (options *DeviceFactory) requestDeviceStatus(ch chan bool) {
 func (options *DeviceFactory) requestDeviceStatus() {
-	message := struct {
-		Cols []string `json:"cols"`
-		Mac  string   `json:"mac"`
-		T    string   `json:"t"`
-	}{
-		Cols: []string{
-			"Pow",
-			"Mod",
-			"TemUn",
-			"SetTem",
-			"WdSpd",
-			"Air",
-			"Blo",
-			"Health",
-			"SwhSlp",
-			"Lig",
-			"SwingLfRig",
-			"SwUpDn",
-			"Quiet",
-			"Tur",
-			"SvSt",
-		},
-		Mac: options.Device.Id,
-		T:   "status",
+	for {
+		message := struct {
+			Cols []string `json:"cols"`
+			Mac  string   `json:"mac"`
+			T    string   `json:"t"`
+		}{
+			Cols: []string{
+				"Pow",
+				"Mod",
+				"TemUn",
+				"SetTem",
+				"WdSpd",
+				"Air",
+				"Blo",
+				"Health",
+				"SwhSlp",
+				"Lig",
+				"SwingLfRig",
+				"SwUpDn",
+				"Quiet",
+				"Tur",
+				"SvSt",
+			},
+			Mac: options.Device.Id,
+			T:   "status",
+		}
+		err := options.sendRequest(message)
+		if err != nil {
+			log.Errorf("[UDP] Error: %s", err)
+			//ch <- false
+			//break
+		}
+		time.Sleep(time.Second * 3)
 	}
-	options.sendRequest(message)
-	time.Sleep(time.Second * 3)
-	options.requestDeviceStatus()
 }
 
-func (options *DeviceFactory) sendRequest(message interface{}) {
+func (options *DeviceFactory) sendRequest(message interface{}) error {
 	encryptedMessage := Encrypt(message, options.Device.Key)
 	request := UDPInfo{
 		Tcid: "",
@@ -139,12 +146,13 @@ func (options *DeviceFactory) sendRequest(message interface{}) {
 	}
 	requestJson, err := json.Marshal(request)
 	if err != nil {
-		log.Errorf("[UDP] Error: %s", err)
+		return err
 	}
 	_, err = options.Conn.Write(requestJson)
 	if err != nil {
-		log.Errorf("[UDP] Error: %s", err)
+		return err
 	}
+	return nil
 }
 
 // SendCommand /**
@@ -158,10 +166,15 @@ func (options *DeviceFactory) sendCommand(commends []string, values []int) {
 		P:   values,
 		T:   "cmd",
 	}
-	options.sendRequest(message)
+	err := options.sendRequest(message)
+	if err != nil {
+		log.Errorf("[UDP] Error: %s", err)
+	}
 }
 
 func (options *DeviceFactory) handleResponse(conn net.Conn) {
+
+	//ch := make(chan bool)
 	for {
 		data := make([]byte, 1024)
 		read, err := conn.Read(data)
@@ -192,6 +205,7 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			options.Device.Bound = true
 			options.Device.Key = pack.Key
 			go options.requestDeviceStatus()
+			//go options.requestDeviceStatus(ch)
 			options.OnConnected()
 			continue
 		}
@@ -211,6 +225,15 @@ func (options *DeviceFactory) handleResponse(conn net.Conn) {
 			options.OnUpdate(&options.Device)
 			continue
 		}
+		//if !<-ch {
+		//	log.Debugf("[UDP] Disconnected %d", options.Host)
+		//	err := options.Conn.Close()
+		//	if err != nil {
+		//		log.Errorf("[UDP] Error: %s", err)
+		//	}
+		//	go options.ConnectToDevice(options.Host)
+		//	break
+		//}
 		log.Errorf("[UDP] Unknown Message of type %s: %v, %v", pack.T, data[:read], pack)
 	}
 }

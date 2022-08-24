@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/labstack/gommon/log"
 )
 
 var defaultKey = "a3K8Bx%2r8Y7#xDh"

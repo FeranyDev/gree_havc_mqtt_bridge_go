@@ -2,9 +2,13 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+      - dev
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+      - dev
 
 jobs:
   build:
@@ -15,51 +19,13 @@ jobs:
       uses: actions/setup-go@v3
       with:
         go-version: 1.18
-      env:
-        ACCESS_TOKEN: $GITHUB_TOKEN
-        FOLDER: build
 
     - name: Get Mods
       run: go install
 
-    - name: Build-Linux-amd64
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./build/bridge-linux-amd64 -ldflags "-s -w"
+    - name: Build
+      run: make release
 
-    - name: Build-Linux-386
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -o ./build/bridge-linux-386 -ldflags "-s -w"
-
-    - name: Build-Linux-arm64
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ./build/bridge-linux-arm64 -ldflags "-s -w"
-
-    - name: Build-Linux-arm
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -o ./build/bridge-linux-arm -ldflags "-s -w"
-
-    - name: Build-Linux-mips64
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=mips64 go build -o ./build/bridge-linux-mips64 -ldflags "-s -w"
-
-    - name: Build-Linux-mips
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=mips go build -o ./build/bridge-linux-mips -ldflags "-s -w"
-
-    - name: Build-Linux-mips64le
-      run: CGO_ENABLED=0 GOOS=linux GOARCH=mips64le go build -o ./build/bridge-linux-mips64le -ldflags "-s -w"
-
-    - name: Build-Windows-amd64
-      run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ./build/bridge-windows-amd64.exe -ldflags "-s -w"
-
-    - name: Build-Windows-386
-      run: CGO_ENABLED=0 GOOS=windows GOARCH=386 go build -o ./build/bridge-windows-386.exe -ldflags "-s -w"
-
-    - name: Build-Windows-arm64
-      run: CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -o ./build/bridge-windows-arm64.exe -ldflags "-s -w"
-
-    - name: Build-Windows-arm
-      run: CGO_ENABLED=0 GOOS=windows GOARCH=arm go build -o ./build/bridge-windows-arm.exe -ldflags "-s -w"
-
-    - name: Build-Mac-amd64
-      run: CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o ./build/bridge-darwin-amd64 -ldflags "-s -w"
-
-    - name: Build-Mac-arm64
-      run: CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o ./build/bridge-darwin-arm64 -ldflags "-s -w"
       
       
 

@@ -4,13 +4,12 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"net"
-	"os"
-
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/feranydev/gree_havc_mqtt_bridge_go/app"
 	"github.com/feranydev/gree_havc_mqtt_bridge_go/config"
-	log "github.com/sirupsen/logrus"
+	"github.com/labstack/gommon/log"
+	"net"
+	"os"
 )
 
 func create() *config.Config {
@@ -56,10 +55,23 @@ func create() *config.Config {
 }
 
 func main() {
+
+	log.SetLevel(log.DEBUG)
+
 	c := create()
 
 	var mqttClient mqtt.Client
 	var bemfaClient mqtt.Client
+
+	var clients []*app.AppOptions
+
+	reconnect := func(client mqtt.Client, options *mqtt.ClientOptions) {
+		log.Debugf("[MQTT] Reconnecting to %s:%d", c.Mqtt.Havc.Host, c.Mqtt.Havc.Port)
+		for _, client := range clients {
+			go client.OnConnected()
+		}
+	}
+
 	if c.Mqtt.Havc.Host != "" {
 		mqttOpts := mqtt.NewClientOptions()
 		mqttOpts.SetUsername(c.Mqtt.Havc.Username)
@@ -68,9 +80,7 @@ func main() {
 		mqttOpts.SetDefaultPublishHandler(func(client mqtt.Client, message mqtt.Message) {
 			log.Infof("[MQTT]Received message on topic %s: %s", message.Topic(), message.Payload())
 		})
-		mqttOpts.SetReconnectingHandler(func(client mqtt.Client, options *mqtt.ClientOptions) {
-			log.Infof("[MQTT] Reconnecting")
-		})
+		mqttOpts.SetReconnectingHandler(reconnect)
 		if c.Mqtt.Havc.Tls {
 			mqttOpts.SetTLSConfig(&tls.Config{InsecureSkipVerify: false})
 			mqttOpts.AddBroker(fmt.Sprintf("mqtts://%s:%d", c.Mqtt.Havc.Host, c.Mqtt.Havc.Port))
@@ -102,9 +112,8 @@ func main() {
 			log.Infof("[BEMFA]Received message on topic %s: %s", message.Topic(), message.Payload())
 		})
 		bemfaOpts.SetClientID(c.Mqtt.Bemfa.ClientID)
-		bemfaOpts.SetReconnectingHandler(func(client mqtt.Client, options *mqtt.ClientOptions) {
-			log.Infof("[BEMFA] Reconnecting")
-		})
+
+		bemfaOpts.SetReconnectingHandler(reconnect)
 
 		bemfaOpts.OnConnect = func(client mqtt.Client) {
 			log.Infof("[BEMFA] Connected to %s:%d", c.Mqtt.Bemfa.Host, c.Mqtt.Bemfa.Port)
@@ -120,9 +129,10 @@ func main() {
 	}
 
 	for i, gree := range c.Gree {
-		log.Infof("[APP:%d] Connecting to %s:%d", i+1, gree.Host, gree.Port)
+		log.Infof("[DEVICE:%d] Connecting to %s:%d", i+1, gree.Host, gree.Port)
 		client := app.Create()
 		client.Start(mqttClient, bemfaClient, &gree)
+		clients = append(clients, client)
 	}
 
 	select {}
