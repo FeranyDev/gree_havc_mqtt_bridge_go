@@ -77,6 +77,9 @@ func main() {
 		mqttOpts.SetUsername(c.Mqtt.Havc.Username)
 		mqttOpts.SetPassword(c.Mqtt.Havc.Password)
 		mqttOpts.SetCleanSession(true)
+		if c.Mqtt.Havc.ClientID != "" {
+			mqttOpts.ClientID = c.Mqtt.Havc.ClientID
+		}
 		mqttOpts.SetDefaultPublishHandler(func(client mqtt.Client, message mqtt.Message) {
 			log.Infof("[MQTT]Received message on topic %s: %s", message.Topic(), message.Payload())
 		})
@@ -112,7 +115,6 @@ func main() {
 			log.Infof("[BEMFA]Received message on topic %s: %s", message.Topic(), message.Payload())
 		})
 		bemfaOpts.SetClientID(c.Mqtt.Bemfa.ClientID)
-
 		bemfaOpts.SetReconnectingHandler(reconnect)
 
 		bemfaOpts.OnConnect = func(client mqtt.Client) {
